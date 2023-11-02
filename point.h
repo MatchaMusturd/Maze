@@ -19,6 +19,7 @@ public:
     Point* next=nullptr;
     int actualvalue=0;//每个节点的实际代价
     int value=0;//节点总代价
+//    double actualineratio;//实际代价除实际直线距离
 //    inline static int count=0;//计数器
 //    int pointcount;
 };
@@ -34,7 +35,7 @@ public:
     Queue();
     ~Queue();
     bool isEmpty();
-    void enqueue(const QPoint,const QPoint,const int,const int);
+    void enqueue(const QPoint,const QPoint,const int);
     void dequeue(Point&);
 };
 

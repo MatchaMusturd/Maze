@@ -1,44 +1,51 @@
 ﻿#include "tes2.h"
 #include <iostream>
 
-Tes2::Tes2(const QPoint point2,
-           const QImage* image)
+Tes2::Tes2(const QPoint point1,
+            const QPoint point2,
+            const QImage* image)
 {
-    point_2=point2;
-    image_=*image;
-    pointlist_.clear();
+    point_1 = point1;
+    point_2 = point2;
+    image_ = *image;
+//    pointlist_.clear();
+    pointlist_ = new QVector<Point>;
+    Check = true;
 //    q=new Queue;
-    timer=new QElapsedTimer;
-    list=new QList<Point>;
+    timer = new QElapsedTimer;
+    list = new QList<Point>;
+    rgb = image_.pixel(point_2);
+    lock = new QReadWriteLock;
 //    queue=new Queue;
 }
 
 Tes2::~Tes2(){
-//    delete q;
+    delete pointlist_;
     delete timer;
     delete list;
+    delete lock;
 }
 
 
 double Tes2::lengthjudge(const QPoint point,
                          const QPoint point2){
-    float x1,y1;
+    float x1, y1;
     double length;
-    x1=point.x()-point2.x();
-    y1=point.y()-point2.y();
-    length=qPow(x1,2)+qPow(y1,2);
-    length=qSqrt(length);
+    x1 = point.x() - point2.x();
+    y1 = point.y() - point2.y();
+    length = qPow(x1, 2) + qPow(y1, 2);
+    length = qSqrt(length);
     return length;
 }
 
-bool Tes2::checkifout(const QPoint qpoint,const int l){
+bool Tes2::checkifout(const QPoint qpoint, const int l){
     bool check;
-    if(qpoint.x()<image_.width()-l
-        &&qpoint.x()>l
-        &&qpoint.y()<image_.height()-l
-        &&qpoint.y()>l){
-        check=true;
-    }else check=false;
+    if(qpoint.x() < image_.width() - l
+        &&qpoint.x() > l
+        &&qpoint.y() < image_.height() - l
+        &&qpoint.y() > l){
+        check = true;
+    }else check = false;
     return check;
 }
 
@@ -47,51 +54,54 @@ auto Tes2::checkifather(const QPoint qpoint){
     bool returncheck=true;
     int length;
     QVector<Point>::iterator iter;
-    for(iter=pointlist_.begin();
-         iter!=pointlist_.end();
+//    lock->lockForRead();
+    for(iter=pointlist_->begin();
+         iter!=pointlist_->end();
          iter++){
         length=iter->l-1;
-        if(lengthjudge(qpoint,iter->xy)<length){
+        if(lengthjudge(qpoint, iter->xy) < length){
             returncheck=false;
             break;
         }
     }
+//    lock->unlock();
     return returncheck;
 };
 
-int Tes2::actualvalue(const QPoint& qpoint,const Point& point){
+int Tes2::actualvalue(const Point& point){
     int actualvalue;
-    int x_,y_;
-    QPoint qpoint1=point.xy;
-    x_ = abs(qpoint.x() - qpoint1.x());
-    y_ = abs(qpoint.y() - qpoint1.y());
     if(point.actualvalue != 0)
-        actualvalue = x_ + y_ + point.actualvalue;
-    else actualvalue = x_ + y_;
+        actualvalue = point.l + point.actualvalue;
+    else actualvalue = point.l;
     return actualvalue;
 }
 
-int Tes2::estivalue(const QPoint& qpoint){
-    int value;
-    int x_,y_;
-    x_=abs(qpoint.x()-point_2.x());
-    y_=abs(qpoint.y()-point_2.y());
-    value=x_+y_;
-    return value;
+double Tes2::lineratio(const QPoint& qpoint){
+    double l1, l2, r;
+    l1 = lengthjudge(qpoint, point_1);
+    l2 = lengthjudge(qpoint, point_2);
+    r = l2 / l1;
+    return r;
 }
 
+
 auto Tes2::circlerect(Point &point){
-    float px,py;
+//    qDebug()<<"into the criclerect";
+    float px, py;
     double rx,ry,rx_,ry_;
     int k;
     double angle;
     double arc;
-    int l=point.l;
-    QPoint qpoint=point.xy;
-    px=qpoint.x();
-    py=qpoint.y();
+    int l = point.l;
+    QPoint point_;//临时坐标
+    QPointF qpoint1;//临时坐标
+    int actual_value;//实际代价
+    double ratio;//距离终点距离与距离起点距离比值
+    double estivalue_;//预估代价
+    int value_;//总代价
+    px=point.xy.x();
+    py=point.xy.y();
     for(int i=0;i<360;i+=5){
-        QPointF qpoint1;
         k=0;
         if(i > 180) angle = i - 180;
         else angle = i;
@@ -115,12 +125,15 @@ auto Tes2::circlerect(Point &point){
             }
             if(k == l / 2){
                 i += 55;
-
-                QPoint point_ = qpoint1.toPoint();
-                int actual_value = actualvalue(point_,point);
-                int estivalue_ = estivalue(point_);
+                point_ = qpoint1.toPoint();
+                actual_value = actualvalue(point);
+                //第一个参数是当前节点，第二个参数是上一个节点
+                ratio = lineratio(point_);
+                //实际代价除实际直线代价
+                estivalue_ = ratio * actual_value;
+                value_ = actual_value + estivalue_;
                 Point point_1;
-                int value_ = actual_value + estivalue_;
+
                 point_1.actualvalue = actual_value;
                 point_1.value = value_;
                 point_1.fatherpoint = point.xy;
@@ -133,7 +146,7 @@ auto Tes2::circlerect(Point &point){
                     else{
                         for(int i = list->size() - 1; i >= 0; i--){
                             if(value_ >= list->at(i).value){
-                                list->insert(i+1, point_1);
+                                list->insert(i + 1, point_1);
                                 break;
                             }
                         }
@@ -153,15 +166,17 @@ QVector<QPoint> Tes2::listreturn(Point point){
     listreturn.prepend(point.xy);
     Point point1=point;
     QVector<Point>::iterator iter1;
-    for(iter1=pointlist_.end();
-         iter1!=pointlist_.begin();iter1--){
+    lock->lockForRead();
+    for(iter1=pointlist_->end();
+         iter1!=pointlist_->begin();iter1--){
         if(iter1->xy==point1.fatherpoint){
             listreturn.prepend(iter1->xy);
             point1=*iter1;
         }
     }
+    lock->unlock();
     listreturn.prepend(point_1);
-    size1=listreturn.size();
+    size1 = listreturn.size();
     qDebug()<<"steps count is "<<size1;
 
 //    QPoint qpoint1;
@@ -237,7 +252,7 @@ void Tes2::creatl(Point &point){
 bool Tes2::checkpathclear(const QPoint &qpoint,const QPoint &qpoint2){
     bool checkresult=true;
     double xlen,ylen;
-    double len=lengthjudge(qpoint, qpoint2);
+    double len = lengthjudge(qpoint, qpoint2);
     xlen=qpoint.x() - qpoint2.x();
     ylen=qpoint.y() - qpoint2.y();
     double tan=xlen/ylen;
@@ -262,14 +277,6 @@ bool Tes2::checkpathclear(const QPoint &qpoint,const QPoint &qpoint2){
     return checkresult;
 }
 
-QVector<QPoint> Tes2::pointlist2return(){
-    QVector<QPoint> listreturn;
-    QVector<Point>::iterator iter1;
-    for(iter1=pointlist_.end();
-         iter1!=pointlist_.begin();
-         iter1--) listreturn.prepend(iter1->xy);
-    return listreturn;
-}
 
 void Tes2::Returnpoint(Point &point){
     float length;
@@ -279,26 +286,27 @@ void Tes2::Returnpoint(Point &point){
             Point point22;
             point22=list->first();
             list->removeFirst();
-//            q->dequeue(point22);
-            if(checkifout(point22.xy,2)&&checkifather(point22.xy)){
+            if(checkifout(point22.xy, 2)&&checkifather(point22.xy)){
                 count++;
-                qDebug()<<"number "<<count<<"point is "<<point22.xy;
                 creatl(point22);
-                pointlist_.append(point22);
+                lock->lockForWrite();
+                pointlist_->append(point22);
+                lock->unlock();
+                emit showpoint();
                 length=lengthjudge(point22.xy, point_2);
-
                 if(length<point22.l){
                     //判断与终点的距离，如果小于l，则将终点输入该节点坐标库
                     if(checkpathclear(point22.xy, point_2)){
-                        qDebug() << "The operation took" << timer->elapsed()<< "milliseconds";
-                        QVector<QPoint> pointreturn=listreturn(point22);
-                        QVector<QPoint> pointlist2=pointlist2return();
-                        size2=pointlist2.size();
+                        double seconds = double(timer->elapsed()) / 1000;
+                        qDebug() << "The operation took" << seconds<< "seconds";
+                        QVector<QPoint> pointreturn = listreturn(point22);
+                        lock->lockForRead();
+                        size2 = pointlist_->size();
                         //将所有point的父节点加入一个新的队列
+                        lock->unlock();
                         emit pushpoint(pointreturn); //将路径队列传给Widget类中
-                        emit showpoint(pointlist2);
                         double ratio;
-                        ratio=size1/size2;
+                        ratio=size1 / size2;
                         qDebug()<<"ratio is "<<ratio;
                         Check=false;
                     }else{
@@ -308,29 +316,33 @@ void Tes2::Returnpoint(Point &point){
                 }else  circlerect(point22);//qt进行类内调用
             }
 //            else if(!checkifather(point22.xy)) qDebug()<<"father point";
-        }else if(pointlist_.isEmpty()){
+        }else if(pointlist_->isEmpty()){
             creatl(point);
-            point_1=point.xy;
-            pointlist_.append(point);
-            length=lengthjudge(point.xy,point_2);
+//            point_1 = point.xy;
+//            qDebug()<<"point_1"<<point.xy;
+            lock->lockForWrite();
+            pointlist_->append(point);
+            lock->unlock();
+            length = lengthjudge(point.xy,point_2);
 
-            if(length<point.l/2){//判断与终点的距离，如果小于l，则将终点输入该节点坐标库
-                QVector<QPoint> pointreturn=listreturn(point);
+            if(length < point.l/2){//判断与终点的距离，如果小于l，则将终点输入该节点坐标库
+                QVector<QPoint> pointreturn = listreturn(point);
                 //将所有point的父节点加入一个新的队列
                 emit pushpoint(pointreturn); //将路径队列传给Widget类中
-                Check=false;
+                Check = false;
             }else{
                 circlerect(point);//qt进行类内调用
-                QVector<QPoint> pointlist2=pointlist2return();
-                emit showpoint(pointlist2);
+//                QVector<QPoint> pointlist2=pointlist2return();
+//                emit showpoint();
             }
         }else{
 //            qDebug()<<"size "<<list->size();
-            QVector<QPoint> pointlist2=pointlist2return();
-//            qDebug()<<"pointlist is empty";
-            emit showpoint(pointlist2);
+//            QVector<QPoint> pointlist2=pointlist2return();
+            emit showpoint();
             Check=false;
-            pointlist_.clear();
+//            lock->lockForWrite();
+//            pointlist_->clear();
+//            lock->unlock();
             qDebug()<<"didn't get the result";
         }
 
@@ -342,9 +354,9 @@ void Tes2::Returnpoint(Point &point){
 bool Tes2::checkif(const QRect rect,const double persent){
     bool returncheck;
     float count = 0,k = 0;
-    int rx,ry,x,y;
+    int rx, ry, x, y;
     float checkresult;
-    QRgb rgb = image_.pixel(point_2);
+
     rx = rect.topLeft().x();
     ry = rect.topLeft().y();
     for(int i = 0; i <= rect.height(); i++){
@@ -352,12 +364,12 @@ bool Tes2::checkif(const QRect rect,const double persent){
             count++;
             x = rx + j;
             y = ry + i;
-            if(rgb == image_.pixel(QPoint(x,y))) k++;
+            if(rgb == image_.pixel(QPoint(x, y))) k++;
         }
     }
-    checkresult=k/count;
+    checkresult = k / count;
 //    qDebug()<<"checkresult is"<<checkresult<<Qt::endl;
-    if(checkresult>=persent) returncheck=true;
-    else returncheck=false;
+    if(checkresult >= persent) returncheck = true;
+    else returncheck = false;
     return returncheck;
 }

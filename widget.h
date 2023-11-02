@@ -10,6 +10,7 @@
 #include <QApplication>
 #include<QMimeData>
 #include <QPainterPath>
+#include<QtConcurrent>
 #include"filter.h"
 #include"tes2.h"
 #include"point.h"
@@ -35,15 +36,8 @@ private:
     cv::Mat *mat,mat2,mat3;
     float wid,hei;
     double com;
-    bool initialise=false,
-        changable=false,
-        hidepoint1=false,
-        hidepoint2=false,
-        isrunning=false,
-        connectpoint=false,
-        connection1=false,
-        connection2=false,
-        hideline=true;
+    bool initialise, changable, hidepoint12, isrunning,
+        connectpoint, connection1, connection2, hideline;
     QVector<QByteArray> *adresslist;
     Tes2 *tes;
     QImage *image;
@@ -51,11 +45,10 @@ private:
     Ui::Widget *ui;
     QPoint point1=QPoint(NULL,NULL),
         point2=QPoint(NULL,NULL);
-    int point_count;
     int point_count2;
     QRect rect1,rect2;
-    Point point0;
-    QVector<QPoint> qpointlist,qpointlist2;
+    QVector<QPoint> qpointlist;
+//    QVector<Point> pointlist;
     Filter *fill;
 
     void paintEvent(QPaintEvent *);

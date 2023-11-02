@@ -24,8 +24,7 @@ bool Queue::isEmpty(){
     return front==nullptr;
 }
 
-void Queue::enqueue(const QPoint xy,const QPoint dad,
-                    const int actual_value,const int value_){
+void Queue::enqueue(const QPoint xy,const QPoint dad,const int value_){
     Point* point_ =nullptr;
     try {
         point_=new Point;
