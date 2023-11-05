@@ -8,12 +8,13 @@ Widget::Widget(QWidget *parent)
     ui->setupUi(this);
     image=new QImage;
     fill=new Filter;
+    timer = new QElapsedTimer ;
     check = false;
     isrunning = false;
     changable = false;
     connection1 = false;
     connection2 = false;
-    clipboard=QApplication::clipboard();
+//    clipboard = QApplication::clipboard();
     this->setFocusPolicy(Qt::StrongFocus);
     this->activateWindow();
     wid = this->frameGeometry().width();
@@ -38,6 +39,7 @@ Widget::~Widget()
     delete fill;
     delete mat;
     delete adresslist;
+    delete timer;
 }
 
 void Widget::paintEvent(QPaintEvent *){
@@ -153,7 +155,7 @@ void Widget::mousePressEvent(QMouseEvent *event){
             hidepoint12=false;
             if(!connectpoint&&!initialise){
                 initialise = true;
-//                hideline = true;
+                tes->disconnect();
                 tes->lock->lockForWrite();
                 tes->pointlist_->clear();
                 tes->lock->unlock();
@@ -206,21 +208,45 @@ void Widget::keyPressEvent(QKeyEvent *key){
                 //同时将图像大小锁死
                 isrunning=true;
                 Point point0;
-                point0.xy=point1;
+                point0.xy = point1;
                 qpointlist.clear();
-//                pointlist.clear();
                 append(resize_((*mat)));
-                tes=new Tes2(point1, point2, image);
+                tes = new Tes2(point1, point2, image);
                 append_(resize_(*mat));
+
+                connect(tes, &Tes2::didntfindtheresult,
+                        this,[&](){
+                        qDebug()<<"didn't get the result";
+                        Point point_0;
+                        initialise = true;
+                        tes->lock->lockForWrite();
+                        tes->pointlist_->clear();
+                        tes->lock->unlock();
+                        point_count2 = 0;
+//                        qDebug()<<"point2"<<point2;
+                        point_0.xy = point2;
+//                        qDebug()<<"point_0.xy"<<point_0.xy;
+                        append(resize_((*mat)));
+                        tes = new Tes2(point2, point1, image);
+                        append_(resize_(*mat));
+                        initialise = false;
+                        isrunning = true;
+                        timer->start();
+                        qDebug()<<"run again from the ending point";
+
+                        QtConcurrent::run([&](){
+                            //异步执行
+                            qDebug()<<"point_0.xy"<<point_0.xy;
+                            tes->Returnpoint(point_0);
+                            isrunning = false;
+//                            connectpoint = false;
+                        });
+                },Qt::QueuedConnection);
+
                 connection1=connect(tes,&Tes2::showpoint,
                     this,[&](){
                         tes->lock->lockForRead();
                         Point currentpoint = tes->pointlist_->back();
-//                        time = QTime::currentTime().addMSecs(5);
-//                        while( QTime::currentTime() < time ){
-//                            QCoreApplication
-//                                ::processEvents(QEventLoop::AllEvents, 10);
-//                        }
 
                         point_count2 = tes->pointlist_->size();
                         tes->lock->unlock();
@@ -231,31 +257,38 @@ void Widget::keyPressEvent(QKeyEvent *key){
 
                 connection2=connect(tes,&Tes2::pushpoint,
                     this,[&](QVector<QPoint> pointlist_){
+                        double size1, size2;
+                        double ratio;
+                        double seconds = double(timer->elapsed()) / 1000;
+                        qDebug() << "The operation took" << seconds<< "seconds";
+                        size2 = tes->pointlist_->size();
+                        size1 = pointlist_.size();
+                        qDebug()<<"steps count is "<<size1;
+                        ratio = size1 / size2;
+                        qDebug()<<"ratio is "<<ratio;
                         qpointlist = pointlist_;
                         this->update();
                     },Qt::QueuedConnection);
 
                 initialise = false;
-                tes->timer->start();
+//                qDebug()<<"point2"<<point2;
+                timer->start();
                 qDebug()<<"start running";
-                qDebug()<<"point0.xy="<<point0.xy;
                 QtConcurrent::run([&](){
                     //异步执行
                     tes->Returnpoint(point0);
-                    tes->disconnect();
-                    //断开与tes类的信号连接，直到下次连接
-                    isrunning=false;
+                    isrunning = false;
                     connectpoint = false;
                 });
             }else{
-//                qDebug()<<"connectpoint == false";
                 initialise = true;
                 hideline = true;
                 hidepoint12 = true;
+                tes->disconnect();
                 tes->lock->lockForWrite();
                 tes->pointlist_->clear();
-                point_count2 = 0;
                 tes->lock->unlock();
+                point_count2 = 0;
                 point1 = QPoint(NULL,NULL);
                 point2 = QPoint(NULL,NULL);
                 this->update();
@@ -289,14 +322,14 @@ void Widget::keyPressEvent(QKeyEvent *key){
         }
         if((key->modifiers() == Qt::ControlModifier)
             && (key->key() == Qt::Key_V)){
-            clipboard=QApplication::clipboard();
+            clipboard = QApplication::clipboard();
             const QMimeData *mimeData = clipboard->mimeData();
-            QString addresstring=mimeData->text();
+            QString addresstring = mimeData->text();
             addresstring.remove("file:///");
-            QByteArray array=addresstring.toUtf8();
-            cv::Mat mat_1=fill->cvInit(array);
+            QByteArray array = addresstring.toUtf8();
+            cv::Mat mat_1 = fill->cvInit(array);
             if(!mat_1.empty()){
-                mat2=mat_1;
+                mat2 = mat_1;
                 initialmat(mat2);
                 append_1();
                 if(!adresslist->contains(array)){
@@ -308,70 +341,71 @@ void Widget::keyPressEvent(QKeyEvent *key){
 }
 
 void Widget::initialmat(cv::Mat mat1){
-    mat=new cv::Mat;
-    cv::Mat mat__=mat1;
-    mat__=fill->transColor(mat__);
-    mat__=fill->doublefilter(mat__);
-    medianBlur(mat__,mat__,11);
+    //图像初始化  用于剪裁多余白边
+    mat = new cv::Mat;
+    cv::Mat mat__ = mat1;
+    mat__ = fill->transColor(mat__);
+    mat__ = fill->doublefilter(mat__);
+    medianBlur(mat__, mat__, 11);
     //    mat=fill->dog(mat,0,5);
-    mat__=fill->lapulus(mat__,0);//壹阶拉普拉斯金字塔采样
-    mat__=fill->threshold(mat__,77);//二值化
-    int cols=mat__.cols;
-    int rows=mat__.rows;
-    int col1=0,row1=0,col2=0,row2=0;
-    bool bk=true;
+    mat__ = fill->lapulus(mat__, 0);//壹阶拉普拉斯金字塔采样
+    mat__ = fill->threshold(mat__, 77);//二值化
+    int cols = mat__.cols;
+    int rows = mat__.rows;
+    int col1 = 0, row1 = 0, col2 = 0, row2 = 0;
+    bool bk = true;
     //下面是对原图像进行剪裁，将多余的空白去除
-    for(int i=0;i<cols-1;i++){
-        for(int j=0;j<rows-1;j++){
-            if(mat__.at<uchar>(j,i)==0){
+    for(int i = 0;i < cols - 1; i++){
+        for(int j = 0;j < rows - 1; j++){
+            if(mat__.at<uchar>(j, i) == 0){
 
-                col1=i;
-                bk=false;
+                col1 = i;
+                bk = false;
                 break;
             }
         }
-        if(bk==false) break;
+        if(bk == false) break;
     }
-    bk=true;
-    for(int i=cols-1;i>1;i--){
-        for(int j=rows-1;j>1;j--){
-            if(mat__.at<uchar>(j,i)==0){
+    bk = true;
+    for(int i = cols - 1; i > 1; i--){
+        for(int j = rows - 1; j > 1; j--){
+            if(mat__.at<uchar>(j, i) == 0){
 
-                col2=i;
-                bk=false;
+                col2 = i;
+                bk = false;
                 break;
             }
         }
-        if(bk==false) break;
+        if(bk == false) break;
     }
-    bk=true;
-    for(int i=0;i<rows-1;i++){
-        for(int j=0;j<cols-1;j++){
-            if(mat__.at<uchar>(i,j)==0){
-                row1=i;
-                bk=false;
+    bk = true;
+    for(int i = 0;i < rows - 1; i++){
+        for(int j = 0; j < cols - 1; j++){
+            if(mat__.at<uchar>(i, j) == 0){
+                row1 = i;
+                bk = false;
                 break;
             }
         }
-        if(bk==false) break;
+        if(bk == false) break;
     }
-    bk=true;
-    for(int i=rows-1;i>1;i--){
-        for(int j=cols-1;j>1;j--){
-            if(mat__.at<uchar>(i,j)==0){
-                row2=i;
-                bk=false;
+    bk = true;
+    for(int i = rows - 1; i > 1; i--){
+        for(int j = cols - 1; j > 1; j--){
+            if(mat__.at<uchar>(i, j) == 0){
+                row2 = i;
+                bk = false;
                 break;
             }
         }
-        if(bk==false) break;
+        if(bk == false) break;
     }
-    int len1,len2;
-    len1=col2-col1;
-    len2=row2-row1;
+    int len1, len2;
+    len1 = col2 - col1;
+    len2 = row2 - row1;
     //cols=y,rows=x
-    cv::Rect rect(col1,row1,len1,len2);
-    *mat=mat1(rect);
+    cv::Rect rect(col1, row1, len1, len2);
+    *mat = mat1(rect);
 }
 
 //图像初始化
@@ -379,18 +413,18 @@ void Widget::append_1(){
     QPixmap pix;
     int wid,hei;
 
-    com= double(mat->cols)/ double(mat->rows);
-    pix=fill->qimage_(*mat);
-    *image=pix.toImage();
-    wid=image->width();
-    hei=image->height();
-    this->setGeometry(0,50,wid-5,hei-5);
+    com = double(mat->cols) / double(mat->rows);
+    pix = fill->qimage_(*mat);
+    *image = pix.toImage();
+    wid = image->width();
+    hei = image->height();
+    this->setGeometry(0, 50, wid - 5, hei - 5);
     this->update();
-    this->setGeometry(0,50,wid,hei);
+    this->setGeometry(0, 50, wid, hei);
     this->update();
     ui->textBrowser->hide();
-    changable=true;
-    initialise=true;
+    changable = true;
+    initialise = true;
 //    hidepoint2=false;
     hidepoint12 = false;
     hideline = true;

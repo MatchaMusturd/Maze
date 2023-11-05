@@ -11,6 +11,7 @@
 #include<QMimeData>
 #include <QPainterPath>
 #include<QtConcurrent>
+#include<QElapsedTimer>
 #include"filter.h"
 #include"tes2.h"
 #include"point.h"
@@ -29,7 +30,7 @@ public:
     ~Widget();
 
 private:
-
+    QElapsedTimer *timer;
     QClipboard *clipboard;
     QTime time;
     int windowwid,windowhei;

@@ -9,7 +9,7 @@
 #include<QList>
 #include<QtMath>
 #include<QMutex>
-#include<QElapsedTimer>
+
 #include<QReadWriteLock>
 #include"point.h"
 
@@ -19,14 +19,14 @@ class Tes2 : public QObject
     Q_OBJECT
 private:
 
-    int count=0;
+//    int count=0;
     QPoint point_2;//终点
     QPoint point_1;//起点
     QImage image_;//图像
     bool Check;//全局断点
     QList<Point> *list;
-    double size2,size1;
     QRgb rgb;
+    QVector<int> *lenlist;
 
     double lengthjudge(const QPoint,const QPoint);
     bool checkif(const QRect,const double);
@@ -42,13 +42,14 @@ private:
 public:
     QReadWriteLock *lock;
     QVector<Point> *pointlist_;
-    QElapsedTimer *timer;
+
     explicit Tes2(const QPoint,const QPoint,const QImage*);
     ~Tes2();
     void Returnpoint(Point&);//迭代函数：输入初始节点
 signals:
     void pushpoint(QVector<QPoint>);
-     void showpoint();
+    void showpoint();
+    void didntfindtheresult();
 };
 
 #endif // TES2_H

@@ -102,16 +102,16 @@ cv::Mat Filter::cvTranf(cv::Mat mat2,cv::Size size){
 }
 
 QPixmap Filter::qimage_(cv::Mat mat){
-    int channel=mat.channels();
+    int channel = mat.channels();
     QPixmap map;
-    if(channel==3){
-        QImage image( mat.data,mat.cols, mat.rows,
+    if(channel == 3){
+        QImage image(mat.data, mat.cols, mat.rows,
                      static_cast<int>(mat.step),
                      QImage::Format_BGR888);
         map = QPixmap::fromImage(image);
-    }else if(channel==4){
+    }else if(channel == 4){
 
-        QImage image( mat.data,mat.cols, mat.rows,
+        QImage image(mat.data, mat.cols, mat.rows,
                      static_cast<int>(mat.step),
                      QImage::Format_ARGB32);
         map = QPixmap::fromImage(image);
@@ -132,8 +132,8 @@ QPixmap Filter::qimage(cv::Mat mat){
 
 cv::Mat Filter::cvInit(QByteArray array){
     cv::Mat mat2;
-    char *adress=array.data();
-    mat2=cv::imread(adress,-1);
+    char *adress = array.data();
+    mat2 = cv::imread(adress, -1);
     if(mat2.empty()){
         qDebug()<< "Error! Input image cannot be read...\n";
     }
