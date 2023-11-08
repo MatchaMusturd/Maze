@@ -22,19 +22,27 @@ QMAKE_LFLAGS +="/STACK:6553600,409600"
 SOURCES += \
 #    controler.cpp \
     #core.cpp \
+    externalcall.cpp \
     filter.cpp \
+    generatelength.cpp \
+    generpoint.cpp \
     main.cpp \
     point.cpp \
     tes2.cpp \
-    widget.cpp
+    widget.cpp \
+    widgetwindow.cpp
 
 HEADERS += \
 #    controler.h \
    # core.h \
+    externalcall.h \
     filter.h \
+    generatelength.h \
+    generpoint.h \
     point.h \
     tes2.h \
-    widget.h
+    widget.h \
+    widgetwindow.h
 
 FORMS += \
 #    controler.ui \

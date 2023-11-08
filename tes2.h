@@ -18,36 +18,31 @@ class Tes2 : public QObject
 {
     Q_OBJECT
 private:
+    QVector<Point>::iterator iter;
+    float checkr, count, k_, x1, y1;
+    bool returncheck, cio;
+    double length_;
+    int r_2, r, actual_value, sum, size, length2, cix, ciy, length, x, y;
 
-//    int count=0;
-    QPoint point_2;//终点
-    QPoint point_1;//起点
-    QImage image_;//图像
-    bool Check;//全局断点
-    QList<Point> *list;
+protected:
     QRgb rgb;
-    QVector<int> *lenlist;
+    QImage image_;//图像
 
-    double lengthjudge(const QPoint,const QPoint);
     bool checkif(const QRect,const double);
     bool checkifout(const QPoint,const int);
-    QVector<QPoint> listreturn(Point);
-    auto circlerect(Point&);
-    auto checkifather(const QPoint);
-    void creatl(Point&);
-    bool checkpathclear(const QPoint&, const QPoint&);
-    int actualvalue(const Point&);
-    double lineratio(const QPoint&);
+    bool checkifather(const QPoint);
 
 public:
-    QReadWriteLock *lock;
-    QVector<Point> *pointlist_;
-
-    explicit Tes2(const QPoint,const QPoint,const QImage*);
+    QPoint point_1;//起点
+    QPoint point_2;//终点
+    QReadWriteLock* lock;
+    QVector<Point>* pointlist_;
+    static double lengthjudge(const QPoint,const QPoint);
+    explicit Tes2();
     ~Tes2();
-    void Returnpoint(Point&);//迭代函数：输入初始节点
+
 signals:
-    void pushpoint(QVector<QPoint>);
+    void pushpoint();
     void showpoint();
     void didntfindtheresult();
 };

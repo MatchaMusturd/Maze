@@ -9,25 +9,28 @@ Widget::Widget(QWidget *parent)
     image=new QImage;
     fill=new Filter;
     timer = new QElapsedTimer ;
-    check = false;
+    point1list = new QVP;
+    point2list = new QVP;
     isrunning = false;
     changable = false;
     connection1 = false;
     connection2 = false;
-//    clipboard = QApplication::clipboard();
+    teslist = new QVector<ExternalCall>;
     this->setFocusPolicy(Qt::StrongFocus);
     this->activateWindow();
     wid = this->frameGeometry().width();
     hei = this->frameGeometry().height();
     this->move(50, 50);
-    adresslist = new QVector<QByteArray>;
+
     ui->textBrowser->setFontPointSize(14);
-    QString instructstring = "move the operation picture on the table,\n"
-                             "Copy(Ctrl+C) and paste (Ctrl+V) the picture to the window show on the left top of the screen.\n"
-                             "Scrole the mouse wheel to control the size of window and the picture\n"
-                             "press the left and the right key to switch the pictures that has been saved\n"
-                             "press the mouse on the picture to show set a start position and an end position\n"
-                             "Enter to run the picture to find the way from the start position to the end position.\n";
+    QString instructstring = "1 move the operation picture on the table\n"
+                             "  Copy(Ctrl+C) and paste (Ctrl+V) the picture to the window show on the left top of the screen.\n"
+                             "2 Scrole the mouse wheel to control the size of window and the picture\n"
+                             "3 press the left and the right key to switch the pictures that has been saved\n"
+                             "4 press the left mouse on the picture to set start points\n"
+                             "  press the right mouse on the picture to set end points\n"
+                             "  press Escape to delete points\n"
+                             "5 Enter to run the picture to find the way from start points to end points";
     ui->textBrowser->setText(instructstring);
 }
 
@@ -35,64 +38,15 @@ Widget::~Widget()
 {
     delete ui;
     delete image;
-    delete tes;
     delete fill;
     delete mat;
-    delete adresslist;
     delete timer;
+    delete point1list;
+    delete point2list;
+    delete teslist;
+    delete teslist_;
 }
 
-void Widget::paintEvent(QPaintEvent *){
-    if(!image->isNull()){
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.drawImage(QPoint(0,0),*image);
-
-        if(!hidepoint12){
-
-            painter.setPen(QPen(Qt::red, 5));
-            painter.drawPoint(point1);
-            painter.setPen(QPen(Qt::blue, 5));
-            painter.drawPoint(point2);
-        }
-//        if(!hidepoint2){
-//            painter.setPen(QPen(Qt::blue,4));
-//            painter.drawPoint(point2);
-//        }
-        if(!hideline){
-            painter.setPen(QPen(Qt::green,2));
-            painter.drawLine(point1,point2);
-        }
-        if(!initialise){//连接之后不显示两点间连线  显示最终路径和搜索点
-            Point pi, pj;
-            tes->lock->lockForRead();
-            if(!tes->pointlist_->isEmpty()){
-//                qDebug()<<"point_count2"<<point_count2;
-                for(int i = 0; i < point_count2; i++){
-                    pi = tes->pointlist_->at(i);
-                    painter.setPen(QPen(Qt::red, 3));
-                    painter.drawPoint(pi.xy);
-                    for(int j = i - 1; j >= 0; j--){
-                        pj = tes->pointlist_->at(j);
-                        if(pi.fatherpoint == pj.xy){
-                            painter.setPen(QPen(Qt::red, 1));
-                            painter.drawLine(pi.xy, pj.xy);
-                            break;
-                        }
-                    }
-                }
-            }else qDebug()<<"pointlist is empty"<<Qt::endl;
-            tes->lock->unlock();
-            painter.setPen(QPen(Qt::blue,2));
-            for(int i = 0; i < qpointlist.size() - 1; i++){
-                painter.drawLine(qpointlist.at(i), qpointlist.at(i + 1));
-            }
-        }
-//        }
-//        painter.drawImage(QPoint(0,0),*image);
-        painter.end();
-    }
-}
 
 cv::Mat Widget::resize_(cv::Mat mat){
     wid=this->geometry().width();
@@ -112,232 +66,155 @@ cv::Mat Widget::resize_(cv::Mat mat){
     return mat_1;
 }
 
-void Widget::resizeEvent(QResizeEvent *){
 
-    if( changable){
-        cv::Mat mat_11;
-
-        mat_11=resize_(*mat);
-        hidepoint12=true;
-//        hidepoint2=true;
-        hideline=true;
-        append_(mat_11);
-    }
-
-}
-
-void Widget::focusInEvent(QFocusEvent *event)
-{
-    QWidget::focusInEvent(event);
-}
-
-void Widget::wheelEvent(QWheelEvent* event){
-    wid=this->geometry().width();
-    hei=this->geometry().height();
-    if(changable){
-        double rowschange=50 * com;
-        if(event->angleDelta().y()>0)
-            this->resize(QSize(wid + rowschange, hei + 50));
-        else this->resize(QSize(wid - rowschange, hei - 50));
+void Widget::initial(){
+    if(!connectpoint&&!initialise){
+        initialise = true;
+        hideline = true;
+        teslist->clear();
+        countpoint1 = 0;
+        countpoint2 = 0;
+        point1list->clear();
+        point2list->clear();
+        this->update();
+    }else{
+        hidepoints = false;
     }
 }
 
-void Widget::mousePressEvent(QMouseEvent *event){
-    changable = false;
-    //保护在鼠标点击事件过程中图像大小不会受到影响
-    if(!image->isNull()&&!isrunning){
-        this->setFocus(); //单单这句是无效的
-        QWidget::mousePressEvent(event);
-//        judgestring="clicked";
-        if(event->button() == Qt::LeftButton)
-        {
-            check=!check;
-            hidepoint12=false;
-            if(!connectpoint&&!initialise){
-                initialise = true;
-                tes->disconnect();
-                tes->lock->lockForWrite();
-                tes->pointlist_->clear();
-                tes->lock->unlock();
-                point_count2 = 0;
-                this->update();
-            }
-            if(check){
-                point1=event->pos();
-                qDebug()<<"point1 is"<<point1;
-                this->update();
-            }
-            else{
-                hideline = false;
-                point2 = event->pos();
-                qDebug()<<"point2 is"<<point2;
-                this->update();
-            }
-            if(!point1.isNull()&&!point2.isNull()){
-
-                append(resize_((*mat)));
-
-                if(image->pixel(point1)==image->pixel(point2)){
-                    connectpoint=true;
-
-                }else{
-                    qDebug()<<"connect failed"<<Qt::endl;
-                }
-                append_(resize_(*mat));
-            }
-
+bool Widget::ifconnect(){
+    returncheck = true;
+    //通过判断所有点是否都在路上来判断是否可以跑图
+    append(resize_((*mat)));
+    auto dividcolor = [&](QVP* l){
+        pv = image->pixel(l->at(0));
+        r = qRed(pv);
+        g = qGreen(pv);
+        b = qBlue(pv);
+        if(r!=255||g!=255||b!=255)
+            returncheck = false;
+    };
+    if(point1list->empty()||point2list->empty()){
+        returncheck = false;
+        return returncheck;
+    }else if(countpoint1 == 1){
+        dividcolor(point1list);
+        if(!returncheck) return returncheck;
+        for(i2 = point2list->begin(); i2!= point2list->end(); ){
+            if(pv != image->pixel(*i2)){
+                i2 = point2list->erase(i2);
+            }else i2++;
         }
-        int wid,hei;
-        int x,y;
-        wid=image->width();
-        hei=image->height();
-        x=this->geometry().left();
-        y=this->geometry().top();
-        this->setGeometry(x,y,wid,hei+5);
+    }else if(countpoint2 == 1){
+        dividcolor(point2list);
+        if(!returncheck) return returncheck;
+        for(i1 = point1list->begin(); i1!= point1list->end(); ){
+            if(pv != image->pixel(*i1)){
+                i1 = point1list->erase(i1);
+            }else i1++;
+        }
     }
-    changable=true;
-    //解除鼠标事件对于图像大小改变的保护
+    append_(resize_(*mat));
+    if(point1list->empty()||point2list->empty()){
+        returncheck = false;
+    }
+    return returncheck;
 }
 
-void Widget::keyPressEvent(QKeyEvent *key){
-    if(!isrunning){
-        if(key->key()==Qt::Key_Return){
-            if(connectpoint){
-                changable=false;
-                //如果两个点像素值相同表示连接状态，可以跑图
-                //同时将图像大小锁死
-                isrunning=true;
-                Point point0;
-                point0.xy = point1;
-                qpointlist.clear();
-                append(resize_((*mat)));
-                tes = new Tes2(point1, point2, image);
-                append_(resize_(*mat));
+void Widget::signalthread(ExternalCall& t){
+    //独立线程
+    connect(&t, &Tes2::didntfindtheresult,
+        this,[&](){
+            qDebug()<<"didn't get the result";
+//            Point point_0;
+//            initialise = true;
+//            t.lock->lockForWrite();
+//            t.pointlist_->clear();
+//            t.lock->unlock();
+//            point_0.xy = t.point_2;
+//            append(resize_((*mat)));
+//            ExternalCall et(t.point_2, t.point_1, image);
+//            append_(resize_(*mat));
+//            tlist();
+//            initialise = false;
+//            isrunning = true;
+//            timer->start();
+//            qDebug()<<"run again from the ending point";
 
-                connect(tes, &Tes2::didntfindtheresult,
-                        this,[&](){
-                        qDebug()<<"didn't get the result";
-                        Point point_0;
-                        initialise = true;
-                        tes->lock->lockForWrite();
-                        tes->pointlist_->clear();
-                        tes->lock->unlock();
-                        point_count2 = 0;
-//                        qDebug()<<"point2"<<point2;
-                        point_0.xy = point2;
-//                        qDebug()<<"point_0.xy"<<point_0.xy;
-                        append(resize_((*mat)));
-                        tes = new Tes2(point2, point1, image);
-                        append_(resize_(*mat));
-                        initialise = false;
-                        isrunning = true;
-                        timer->start();
-                        qDebug()<<"run again from the ending point";
+//            QtConcurrent::run([&](){
+//                //异步执行
+//                qDebug()<<"point_0.xy"<<point_0.xy;
+//                et.Returnpoint(point_0);
+//                isrunning = false;
+//                connectpoint = false;
+//            });
+        },Qt::QueuedConnection);
 
-                        QtConcurrent::run([&](){
-                            //异步执行
-                            qDebug()<<"point_0.xy"<<point_0.xy;
-                            tes->Returnpoint(point_0);
-                            isrunning = false;
-//                            connectpoint = false;
-                        });
-                },Qt::QueuedConnection);
+    connection1 = connect(&t, &Tes2::showpoint,
+        this, [&](){
+            t.lock->lockForRead();
+            Point currentpoint = t.pointlist_->back();
+            t.lock->unlock();
+            qDebug()<<"number"<<t.pointlist_->size()<<"point is"<<currentpoint.xy;
+            this->update();
 
-                connection1=connect(tes,&Tes2::showpoint,
-                    this,[&](){
-                        tes->lock->lockForRead();
-                        Point currentpoint = tes->pointlist_->back();
+        },Qt::DirectConnection);
 
-                        point_count2 = tes->pointlist_->size();
-                        tes->lock->unlock();
-                        qDebug()<<"number"<<point_count2<<"point is"<<currentpoint.xy;
-                        this->update();
+    connection2 = connect(&t, &Tes2::pushpoint,
+        this, [&](){
+            seconds = double(timer->elapsed()) / 1000;
+            qDebug() << "The operation took" << seconds<< "seconds";
+            size2 = t.pointlist_->size();
+//            qDebug()<<"size_"<<t.pointlist_->size();
+            size1 = t.pointreturn->size();
+            qDebug()<<"steps count is "<<size1;
+            ratio = size1 / size2;
+            qDebug()<<"ratio is "<<ratio;
+            this->update();
+        },Qt::QueuedConnection);
 
-                    },Qt::DirectConnection);
+    initialise = false;
+    Point point0;
+    point0.xy = t.point_1;
+    timer->start();
+    qDebug()<<"start running";
+        //异步执行
+    t.Returnpoint(point0);
+    isrunning = false;
+    connectpoint = false;
+    t.disconnect();
 
-                connection2=connect(tes,&Tes2::pushpoint,
-                    this,[&](QVector<QPoint> pointlist_){
-                        double size1, size2;
-                        double ratio;
-                        double seconds = double(timer->elapsed()) / 1000;
-                        qDebug() << "The operation took" << seconds<< "seconds";
-                        size2 = tes->pointlist_->size();
-                        size1 = pointlist_.size();
-                        qDebug()<<"steps count is "<<size1;
-                        ratio = size1 / size2;
-                        qDebug()<<"ratio is "<<ratio;
-                        qpointlist = pointlist_;
-                        this->update();
-                    },Qt::QueuedConnection);
+}
 
-                initialise = false;
-//                qDebug()<<"point2"<<point2;
-                timer->start();
-                qDebug()<<"start running";
-                QtConcurrent::run([&](){
-                    //异步执行
-                    tes->Returnpoint(point0);
-                    isrunning = false;
-                    connectpoint = false;
-                });
-            }else{
-                initialise = true;
-                hideline = true;
-                hidepoint12 = true;
-                tes->disconnect();
-                tes->lock->lockForWrite();
-                tes->pointlist_->clear();
-                tes->lock->unlock();
-                point_count2 = 0;
-                point1 = QPoint(NULL,NULL);
-                point2 = QPoint(NULL,NULL);
-                this->update();
-            }
+QVector<ExternalCall>* Widget::tlist(){
+    teslist_ = new QVector<ExternalCall>;
+    append(resize_((*mat)));
+    if(point1list->size() == 1&&point2list->size() == 1){
+        et = new ExternalCall(point1list->at(0), point2list->at(0), image);
+        teslist_->append(*et);
+        signalthread(*et);
+    }else if(point1list->size() == 1){
+        p1 = point1list->at(0);
+        for(i2 = point2list->begin(); i2 != point2list->end(); i2++){
+
+            et = new ExternalCall(p1, *i2, image);
+            teslist_->append(*et);
         }
-
-        int size = adresslist->size();
-        if(size>1){
-            cv::Mat mat_1;
-            QByteArray array1;
-            if(key->key()==Qt::Key_Left){
-                array1=adresslist->at(size-2);
-                mat_1=fill->cvInit(array1);
-                mat2=mat_1;
-                initialmat(mat2);
-                append_1();
-                array1=adresslist->at(size-1);
-                adresslist->pop_back();
-                adresslist->prepend(array1);
-                qDebug()<<"the front picture";
-            }else if(key->key()==Qt::Key_Right){
-                array1=adresslist->at(0);
-                mat_1=fill->cvInit(array1);
-                mat2=mat_1;
-                initialmat(mat2);
-                append_1();
-                adresslist->pop_front();
-                adresslist->append(array1);
-                qDebug()<<"the rear picture";
-            }
-        }
-        if((key->modifiers() == Qt::ControlModifier)
-            && (key->key() == Qt::Key_V)){
-            clipboard = QApplication::clipboard();
-            const QMimeData *mimeData = clipboard->mimeData();
-            QString addresstring = mimeData->text();
-            addresstring.remove("file:///");
-            QByteArray array = addresstring.toUtf8();
-            cv::Mat mat_1 = fill->cvInit(array);
-            if(!mat_1.empty()){
-                mat2 = mat_1;
-                initialmat(mat2);
-                append_1();
-                if(!adresslist->contains(array)){
-                    adresslist->append(array);
-                }
-            }
+    }else if(point2list->size() == 1){
+        p2 = point2list->at(0);
+        for(i1 = point1list->begin(); i1 != point1list->end(); i1++){
+            et = new ExternalCall(*i1, p2, image);
+//            qDebug()<<"append";
+            teslist_->append(*et);
+//            qDebug()<<"~append";
         }
     }
+    append_(resize_(*mat));
+    QtConcurrent::map(teslist_->begin(), teslist_->end(),
+                      [&](ExternalCall& t){
+                          signalthread(t);
+                      });
+    return teslist_;
 }
 
 void Widget::initialmat(cv::Mat mat1){
@@ -425,10 +302,14 @@ void Widget::append_1(){
     ui->textBrowser->hide();
     changable = true;
     initialise = true;
-//    hidepoint2=false;
-    hidepoint12 = false;
+    hidepoints = false;
     hideline = true;
     connectpoint = false;
+    teslist->clear();
+    point1list->clear();
+    point2list->clear();
+    countpoint1 = 0;
+    countpoint2 = 0;
         //在下次两个点的像素值相同之前无法通过回车进行跑图
 }
 

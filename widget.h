@@ -11,14 +11,17 @@
 #include<QMimeData>
 #include <QPainterPath>
 #include<QtConcurrent>
+#include<QFuture>
 #include<QElapsedTimer>
+
 #include"filter.h"
-#include"tes2.h"
-#include"point.h"
+#include "externalcall.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }
 QT_END_NAMESPACE
+
+#define QVP QVector<QPoint>
 
 class Widget : public QWidget
 {
@@ -31,38 +34,39 @@ public:
 
 private:
     QElapsedTimer *timer;
-    QClipboard *clipboard;
-    QTime time;
-    int windowwid,windowhei;
-    cv::Mat *mat,mat2,mat3;
-    float wid,hei;
-    double com;
-    bool initialise, changable, hidepoint12, isrunning,
-        connectpoint, connection1, connection2, hideline;
-    QVector<QByteArray> *adresslist;
-    Tes2 *tes;
-    QImage *image;
-    bool check;
     Ui::Widget *ui;
-    QPoint point1=QPoint(NULL,NULL),
-        point2=QPoint(NULL,NULL);
-    int point_count2;
-    QRect rect1,rect2;
-    QVector<QPoint> qpointlist;
-//    QVector<Point> pointlist;
+    QVector<ExternalCall>* teslist_;
+    QRgb pv;
+    bool returncheck;
+    QVP::iterator i1,i2;
+    int r, g, b, l1, l2;
+    QPoint p1, p2;
+    ExternalCall* et;
+    double size1, size2, ratio, seconds;
+
+protected:
+    QVector<ExternalCall>* teslist;
+    double com;
+    float wid,hei;
+    cv::Mat *mat;
     Filter *fill;
+    QImage *image;
+    int countpoint1, countpoint2;
+    QVP::iterator iter_1, iter_2, iter_;
+    QVP *point1list, *point2list;
+    bool initialise, changable, hidepoints, isrunning,
+        connectpoint, connection1, connection2, hideline, point1first;
 
-    void paintEvent(QPaintEvent *);
-    void mousePressEvent(QMouseEvent *);
-    void focusInEvent(QFocusEvent *);
-    void resizeEvent(QResizeEvent *);
-    void keyPressEvent(QKeyEvent *);
-    void wheelEvent(QWheelEvent*);
 
+    bool ifconnect();
+    void initial();
+    void signalthread(ExternalCall&);
+    QVector<ExternalCall>* tlist();
     void initialmat(cv::Mat);//对*mat初始化
     void append(cv::Mat);//显示二值化的图
     void append_(cv::Mat);//显示原图
     void append_1();
     cv::Mat resize_(cv::Mat);
+
 };
 #endif // WIDGET_H
